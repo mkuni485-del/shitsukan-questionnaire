@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>画像の印象評価アンケート</title>
+<style>
+:root{--bg:#5c5c5c;--fg:#fff;--sub:#d0d0d0;--line:#333;--accent:#404040;--card:#5c5c5c;--font:"Segoe UI","Helvetica Neue","Hiragino Sans","Yu Gothic UI","Meiryo",Arial,sans-serif;color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100vh}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.6;display:flex;align-items:center;justify-content:center}
+main{width:100%;max-width:1200px;padding:24px}
+.card{background:var(--card);padding:32px;max-width:640px;margin:0 auto}
+h1{font-size:1.3rem;margin:0 0 16px}
+p{margin:0 0 12px}
+.sub{color:var(--sub);font-size:.9rem}
+.err{color:#ff3d33;min-height:1.5em;font-size:.9rem}
+.lang{text-align:right;font-size:.85rem;margin-bottom:8px}
+.lang a{color:var(--fg)}.lang a.on{font-weight:bold;text-decoration:none}
+fieldset{border:0;padding:0;margin:0 0 16px}
+legend{font-weight:bold;padding:0;margin-bottom:4px}
+fieldset label{margin-right:16px;white-space:nowrap}
+input[type=radio],input[type=checkbox]{accent-color:#000;width:18px;height:18px;vertical-align:middle;margin:0 6px 0 0}
+input[type=number],input[type=text]{font:inherit;padding:6px;background:var(--bg);color:var(--fg);border:1px solid var(--sub)}
+input[type=number]{width:6em}
+button{font:inherit;padding:10px 32px;background:var(--accent);color:#fff;border:0;cursor:pointer}
+button+button{margin-left:12px}
+button:disabled{opacity:.35;cursor:not-allowed}
+button:focus-visible,.track:focus-visible,.choice:focus-within{outline:3px solid var(--fg);outline-offset:3px}
+.trial{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:74px;align-items:center}
+.bars h2{font-size:1rem;margin:0 0 40px}
+.bar{margin-bottom:36px}
+.cap{font-size:.85rem;color:var(--sub);margin-bottom:6px}
+.track{position:relative;height:34px;cursor:pointer;touch-action:none}
+.track::before{content:"";position:absolute;left:0;right:0;top:16px;height:2px;background:var(--line)}
+.track::after{content:"";position:absolute;left:0;right:0;top:-30px;bottom:-30px}
+.tick{position:absolute;top:6px;width:2px;height:22px;background:var(--line)}
+.tick.l{left:0}.tick.r{right:0}
+.mark{position:absolute;top:3px;width:4px;height:28px;margin-left:-2px;background:var(--fg);display:none}
+.labels{display:flex;justify-content:space-between;gap:12px;font-size:.95rem;margin-top:6px}
+.labels span:last-child{text-align:right}
+.foot{display:flex;align-items:center;gap:16px;margin-top:18px}
+.imgbox{text-align:center}
+#stim{max-width:100%;max-height:78vh;object-fit:contain}
+.choice{display:block;padding:9px 16px;margin-bottom:8px;border:1px solid var(--sub);cursor:pointer;background-color:var(--card)}
+.choice input{position:absolute;opacity:0;pointer-events:none}
+.choice.on{background-color:var(--accent);color:#fff;border-color:var(--fg)}
+.prog{position:fixed;left:0;top:0;height:4px;background:var(--fg);transition:width .2s}
+.count{position:fixed;right:16px;top:10px;font-size:.85rem;color:var(--sub)}
+@media (max-width:900px){.trial{grid-template-columns:1fr}#stim{max-height:40vh}}
+</style>
+<style id="ui-custom"></style>
+</head>
+<body>
+<div class="prog" id="prog" style="width:0"></div>
+<div class="count" id="count"></div>
+<main id="app"></main>
+
+<script>
+/* ================= 設定 / Settings ================= */
+// 文言は {ja:"…", en:"…"} の形で書く。回答データには常に日本語ラベルが保存される(言語が違っても同じ列・同じ値になる)。
+const CONFIG = {
+  defaultLang: "ja",         // URLに ?lang=en を付けると英語で開く。付けなければこの言語
+  images: [
+    "2D_denim.png", "2D_iron.png", "2D_paper.png", "2D_wood.png", "2D_marble.png",
+    "cube_denim.png", "cube_iron.png", "cube_paper.png", "cube_wood.png", "cube_marble.png",
+    "cloth_denim.png", "cloth_iron.png", "cloth_paper.png", "cloth_wood.png", "cloth_marble.png"
+  ],
+  practiceImages: [          // 練習用2枚(本番とは別のもの)。空ならデモ用ダミー画像
+     "practice1.png", "practice2.png"
+  ],
+  randomize: true,           // true=印象評価の提示順を参加者ごとにランダム化
+  materialOrder: "same",     // "same"=印象評価と同じ順 / "random"=ランダム
+
+  items: [
+    { id: "hard_soft",    left: {ja:"硬そう",   en:"Hard"},   right: {ja:"柔らかそう", en:"Soft"} },
+    { id: "rough_smooth", left: {ja:"粗そう",   en:"Rough"},  right: {ja:"滑らかそう", en:"Smooth"} },
+    { id: "warm_cool",    left: {ja:"温かそう", en:"Warm"},   right: {ja:"冷たそう",   en:"Cold"} },
+    { id: "comfortable",  left: {ja:"心地よい", en:"Comfortable"},       right: {ja:"気持ち悪い", en:"Uncomfortable"} },
+    { id: "touch",        left: {ja:"触りたい", en:"Want to touch"},  right: {ja:"触りたくない", en:"Don't want to touch"} },
+    { id: "natural",      left: {ja:"自然",     en:"Natural"},        right: {ja:"不自然",     en:"Unnatural"},
+      caption: {ja:"素材と形状の組み合わせが", en:"The combination of material and shape looks"} }
+  ],
+  heading: {
+    ja: "左の画像を見たときの印象として、当てはまる位置を、それぞれクリックしてください。直感で答えてください。",
+    en: "Look at the image on the left and click, on each line, the position that matches your impression. Answer intuitively."
+  },
+
+  materials: [
+    { id: "cloth",   label: {ja:"布",   en:"Fabric"} },
+    { id: "metal",   label: {ja:"金属", en:"Metal"} },
+    { id: "paper",   label: {ja:"紙",   en:"Paper"} },
+    { id: "wood",    label: {ja:"木材", en:"Wood"} },
+    { id: "stone",   label: {ja:"石",   en:"Stone"} },
+    { id: "other",   label: {ja:"その他", en:"Other"}, askText: true },
+    { id: "unknown", label: {ja:"分からない", en:"Don't know"} }
+  ],
+  materialHeading: {
+    ja: "この画像は何を表していると思いますか?",
+    en: "What material do you think this image represents?"
+  },
+
+  ui: {   // UIのカスタマイズ(パスはHTMLからの相対パス)
+    // font: { family: "MyFont", file: "fonts/MyFont.woff2" },
+    // colors: { bg: "#5c5c5c", text: "#fff", accent: "#404040", card: "#5c5c5c", sub: "#d0d0d0" },
+    bar:  { image: "bar.png",  height: 6 },
+    mark: { image: "mark.png", width: 20, height: 20 }
+    // button: { image: "ui/next.png", disabledImage: "ui/next_off.png", width: 160, height: 48, hideText: true },
+    // choice: { image: "ui/choice.png", selectedImage: "ui/choice_on.png", height: 48 }
+  },
+
+  minWidth: 900,
+  postUrl: "https://script.google.com/macros/s/AKfycbz5A9zpalve4gVpSaWKDN0KQeSACQ-R6-T3zPD-YCGM6y6IAYeuR3BfSCIZmGSdw1WQ/exec",   // 空ならCSV保存のみ
+  studyName: "vas_image_impression"
+};
+
+/* ================= 画面の文言 / UI text ================= */
+const T = {
+ja: {
+  title:"画像の印象評価アンケート", alt:"評価対象の画像", next:"次へ", start:"始める",
+  introTitle:"画像の印象評価アンケートへのご協力のお願い",
+  intro1:n=>`画像を見て、受けた印象を線上に示していただきます(全${n}枚)。その後、同じ画像について素材を選んでいただきます。所要時間はおよそ10分です。`,
+  intro2:"回答は匿名で処理され、研究以外の目的では使用しません。また参加は任意です。いつでも回答を中止できます。",
+  narrow:"画面幅が狭いようです。パソコンで、ブラウザを広げてご回答ください。",
+  age:"年齢(半角)", years:"歳", gender:"性別", male:"男性", female:"女性", other:"その他", noAnswer:"回答しない",
+  cvd:"色の見えにくさを感じたことはありますか?", no:"ない", yes:"ある", unknown:"わからない",
+  agree:"上記の説明を読み、調査への参加に同意します。",
+  eAge:"年齢を半角数字で入力してください。", eGender:"性別を選択してください。", eCvd:"色覚についての項目を選択してください。", eAgree:"同意にチェックを入れてください。",
+  instrTitle:"回答のしかた(1/2:印象評価)",
+  instr1:k=>`画面の左側に画像、右側に${k}本の線が表示されます。画像から受けた印象に近い位置を、各線上で<b>クリック</b>してください。クリック後もドラッグで調整できます。`,
+  instr2:k=>`${k}本すべてに回答すると「次へ」が押せます。正解・不正解はありませんので、直感でお答えください。`,
+  instr3:"まず練習をしていただきます。", startPractice:"練習を始める",
+  pracDone:"練習終了です。", pracDone2:"本番も同じ手順で回答してください。", startMain:"本番を始める",
+  cPractice:(i,n)=>`練習 ${i} / ${n}`, cVas:(i,n)=>`印象評価 ${i} / ${n}`, cMat:(i,n)=>`素材 ${i} / ${n}`,
+  hintAll:k=>`${k}本すべてに回答してください`, hintLeft:n=>`あと${n}本`, imgFail:"画像を読み込めませんでした: ",
+  p2Title:"回答のしかた(2/2:素材)",
+  p2a:"印象評価は終了です。次は、先ほどと同じ画像を1枚ずつ見て、その素材が何に見えるかを選んでください。",
+  p2b:"左側に画像、右側に選択肢が表示されます。最も近いものを1つ選び、「次へ」を押してください。",
+  otherPh:"具体的に(任意)", hintOne:"1つ選んでください",
+  thanks:"本当にありがとうございました。", sending:"送信しています…", wait:"このままお待ちください。",
+  ok:"回答は送信されました。このページを閉じて構いません。",
+  fail:"送信に失敗しました。もう一度送信するか、回答ファイルを保存して実施者にお送りください。",
+  saveMsg:"下のボタンで回答ファイルを保存し、実施者にお送りください。", retry:"もう一度送信", save:"回答ファイルを保存",
+  uiWarn:p=>`UI画像を読み込めません: ${p}(ファイルの場所と名前を確認してください)`
+},
+en: {
+  title:"Image Impression Survey", alt:"Image to rate", next:"Next", start:"Start",
+  introTitle:"Image Impression Survey: Invitation to Participate",
+  intro1:n=>`You will look at images and show your impression of each one on a line (${n} images in total). After that, you will choose the material of the same images. It takes about 10 minutes.`,
+  intro2:"Your responses are anonymous and will be used for research purposes only. Participation is voluntary, and you may stop at any time.",
+  narrow:"Your screen looks narrow. Please respond on a computer with a wide browser window.",
+  age:"Age", years:"years old", gender:"Gender", male:"Male", female:"Female", other:"Other", noAnswer:"Prefer not to answer",
+  cvd:"Have you ever noticed difficulty seeing colors?", no:"No", yes:"Yes", unknown:"Not sure",
+  agree:"I have read the explanation above and agree to participate in this study.",
+  eAge:"Please enter your age as a number (10–120).", eGender:"Please select your gender.", eCvd:"Please answer the question about color vision.", eAgree:"Please check the consent box.",
+  instrTitle:"How to respond (1/2: Impressions)",
+  instr1:k=>`An image appears on the left and ${k} lines on the right. <b>Click</b> each line at the position closest to your impression of the image. You can drag to adjust after clicking.`,
+  instr2:k=>`Once you have answered all ${k} lines, the Next button becomes active. There are no right or wrong answers, so please answer intuitively.`,
+  instr3:"First, you will do a short practice.", startPractice:"Start practice",
+  pracDone:"Practice complete.", pracDone2:"Please respond in the same way in the main task.", startMain:"Start main task",
+  cPractice:(i,n)=>`Practice ${i} / ${n}`, cVas:(i,n)=>`Impressions ${i} / ${n}`, cMat:(i,n)=>`Material ${i} / ${n}`,
+  hintAll:k=>`Please answer all ${k} lines`, hintLeft:n=>`${n} remaining`, imgFail:"Could not load the image: ",
+  p2Title:"How to respond (2/2: Material)",
+  p2a:"The impression ratings are finished. Next, you will see the same images one by one and choose what material each one appears to be made of.",
+  p2b:"The image appears on the left and the options on the right. Choose the closest one and press Next.",
+  otherPh:"Please specify (optional)", hintOne:"Please choose one",
+  thanks:"Thank you very much.", sending:"Sending…", wait:"Please wait.",
+  ok:"Your responses have been submitted. You may close this page.",
+  fail:"Submission failed. Please try again, or save the response file and send it to the researcher.",
+  saveMsg:"Please save the response file with the button below and send it to the researcher.", retry:"Try again", save:"Save response file",
+  uiWarn:p=>`Cannot load UI image: ${p} (check the file location and name)`
+}};
+
+let LANG = /^en/i.test(new URLSearchParams(location.search).get("lang") || CONFIG.defaultLang || "ja") ? "en" : "ja";
+const t = k => T[LANG][k];
+const L = o => typeof o === "string" ? o : (o[LANG] ?? o.ja);     // 表示用
+const J = o => typeof o === "string" ? o : o.ja;                   // 保存用(常に日本語)
+function applyLang(){ document.documentElement.lang = LANG; document.title = t("title"); }
+
+/* ================= 本体 ================= */
+const app = document.getElementById("app"), prog = document.getElementById("prog"), count = document.getElementById("count");
+const rows = [], demo = {};
+const pid = "P" + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const show = h => app.innerHTML = h;
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+function dummy(n){
+  const h = (n*47)%360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="hsl(${h},35%,60%)"/><circle cx="${150+(n*83)%350}" cy="230" r="${50+(n*29)%70}" fill="hsl(${(h+120)%360},45%,75%)"/><text x="320" y="450" font-size="28" text-anchor="middle" fill="#fff">demo ${n}</text></svg>`;
+  return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+let imgs = CONFIG.images.length ? CONFIG.images.map(s=>({src:s,id:s.split("/").pop()})) : Array.from({length:15},(_,i)=>({src:dummy(i+1),id:"demo_"+String(i+1).padStart(2,"0")}));
+const N = imgs.length;
+const IMG_ORDER = imgs.slice();
+const PRACTICE = (CONFIG.practiceImages.length ? CONFIG.practiceImages : [dummy(101), dummy(102)]).map((s,i) => ({src:s, id:"practice_"+(i+1)}));
+let tStart = 0, dirty = false, practiceMode = false, pi = 0, ti = 0, mi = 0, morder = [];
+
+addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+const preload = () => [...imgs, ...PRACTICE].forEach(i => { new Image().src = i.src; });
+
+/* ---------- UIカスタマイズの適用 ---------- */
+(function applyUI(){
+  const u = CONFIG.ui || {}, css = [], url = p => `url("${String(p).replace(/"/g,"%22")}")`;
+  if (u.font) {
+    const fam = u.font.family || "CustomUI";
+    if (u.font.file) css.push(`@font-face{font-family:"${fam}";src:${url(u.font.file)};font-display:swap}`);
+    css.push(`:root{--font:"${fam}","Segoe UI","Helvetica Neue","Hiragino Sans","Yu Gothic UI","Meiryo",Arial,sans-serif}`);
+  }
+  if (u.colors) {
+    const c = u.colors, v = [];
+    if (c.bg) v.push(`--bg:${c.bg}`); if (c.text) v.push(`--fg:${c.text}`); if (c.accent) v.push(`--accent:${c.accent}`);
+    if (c.card) v.push(`--card:${c.card}`); if (c.line) v.push(`--line:${c.line}`); if (c.sub) v.push(`--sub:${c.sub}`);
+    css.push(`:root{${v.join(";")}}`);
+  }
+  if (u.bar && u.bar.image)
+    css.push(`.track::before,.tick{display:none}.track{height:${u.bar.height||40}px;background:${url(u.bar.image)} center/100% 100% no-repeat}`);
+  if (u.mark && u.mark.image) {
+    const w = u.mark.width||24, h = u.mark.height||36;
+    css.push(`.mark{background:${url(u.mark.image)} center/contain no-repeat;width:${w}px;height:${h}px;margin:0;top:50%;transform:translate(-50%,-50%)}`);
+  }
+  if (u.button && u.button.image) {
+    const b = u.button;
+    css.push(`button{background:${url(b.image)} center/100% 100% no-repeat;width:${b.width||160}px;height:${b.height||48}px;padding:0;${b.hideText?"color:transparent;font-size:0;":""}}`);
+    css.push(`button:disabled{${b.disabledImage?`background-image:${url(b.disabledImage)};opacity:1`:"opacity:.35"}}`);
+  }
+  if (u.choice && u.choice.image)
+    css.push(`.choice{background:${url(u.choice.image)} center/100% 100% no-repeat;border:0;color:inherit;height:${u.choice.height||48}px;display:flex;align-items:center}.choice.on{${u.choice.selectedImage?`background-image:${url(u.choice.selectedImage)};`:""}color:inherit}`);
+  document.getElementById("ui-custom").textContent = css.join("\n");
+
+  [u.bar, u.mark, u.button, u.choice].filter(Boolean).flatMap(o => [o.image, o.disabledImage, o.selectedImage]).filter(Boolean).forEach(p => {
+    const im = new Image();
+    im.onerror = () => {
+      const d = document.createElement("div");
+      d.style.cssText = "position:fixed;left:0;right:0;bottom:0;background:#b3261e;color:#fff;padding:6px 12px;font-size:.85rem;z-index:99";
+      d.textContent = t("uiWarn")(p);
+      document.body.appendChild(d);
+    };
+    im.src = p;
+  });
+})();
+
+/* ---------- 画面1: 説明・同意・属性 ---------- */
+function screenIntro(){
+  show(`<div class="card">
+    <div class="lang"><a href="#" data-l="ja" class="${LANG==="ja"?"on":""}">日本語</a> | <a href="#" data-l="en" class="${LANG==="en"?"on":""}">English</a></div>
+    <h1>${t("introTitle")}</h1>
+    <p>${t("intro1")(N)}</p>
+    <p>${t("intro2")}</p>
+    ${innerWidth < CONFIG.minWidth ? `<p class="err">${t("narrow")}</p>` : ""}
+    <fieldset><legend>${t("age")}</legend><input type="number" id="age" min="10" max="120" inputmode="numeric"> ${t("years")}</fieldset>
+    <fieldset><legend>${t("gender")}</legend>
+      <label><input type="radio" name="gender" value="male"> ${t("male")}</label>
+      <label><input type="radio" name="gender" value="female"> ${t("female")}</label>
+      <label><input type="radio" name="gender" value="other"> ${t("other")}</label>
+      <label><input type="radio" name="gender" value="no_answer"> ${t("noAnswer")}</label></fieldset>
+    <fieldset><legend>${t("cvd")}</legend>
+      <label><input type="radio" name="cvd" value="no"> ${t("no")}</label>
+      <label><input type="radio" name="cvd" value="yes"> ${t("yes")}</label>
+      <label><input type="radio" name="cvd" value="unknown"> ${t("unknown")}</label>
+      <label><input type="radio" name="cvd" value="no_answer"> ${t("noAnswer")}</label></fieldset>
+    <label style="display:block;margin-bottom:8px"><input type="checkbox" id="agree"> ${t("agree")}</label>
+    <div class="err" id="err"></div>
+    <button id="go">${t("next")}</button></div>`);
+  document.querySelectorAll(".lang a").forEach(a => a.onclick = e => { e.preventDefault(); LANG = a.dataset.l; applyLang(); screenIntro(); });
+  document.getElementById("go").onclick = () => {
+    const age = parseInt(document.getElementById("age").value, 10);
+    const g = document.querySelector('input[name=gender]:checked'), c = document.querySelector('input[name=cvd]:checked');
+    const err = document.getElementById("err");
+    if (!(age >= 10 && age <= 120)) return err.textContent = t("eAge");
+    if (!g) return err.textContent = t("eGender");
+    if (!c) return err.textContent = t("eCvd");
+    if (!document.getElementById("agree").checked) return err.textContent = t("eAgree");
+    Object.assign(demo, {age, gender:g.value, color_vision:c.value});
+    tStart = performance.now(); dirty = true;
+    preload();
+    screenInstr();
+  };
+}
+
+function screenInstr(){
+  const K = CONFIG.items.length;
+  show(`<div class="card"><h1>${t("instrTitle")}</h1>
+    <p>${t("instr1")(K)}</p><p>${t("instr2")(K)}</p>
+    <p class="sub">${t("instr3")}</p>
+    <button id="go">${t("startPractice")}</button></div>`);
+  document.getElementById("go").onclick = () => { if (CONFIG.randomize) imgs = shuffle(imgs); pi = 0; nextPractice(); };
+}
+
+function loadStim(src, onReady, onFail){
+  const img = document.getElementById("stim");
+  img.onload = () => onReady(performance.now());
+  img.onerror = onFail;
+  img.src = src;
+}
+
+/* ---------- 練習 ---------- */
+function nextPractice(){
+  if (pi >= PRACTICE.length) return screenMainIntro();
+  practiceMode = true;
+  screenVAS(PRACTICE[pi]);
+}
+function screenMainIntro(){
+  practiceMode = false; count.textContent = "";
+  show(`<div class="card"><h1>${t("pracDone")}</h1><p>${t("pracDone2")}</p><button id="go">${t("startMain")}</button></div>`);
+  document.getElementById("go").onclick = () => { ti = 0; nextVAS(); };
+}
+
+/* ---------- パート1: 印象評価 ---------- */
+function nextVAS(){
+  prog.style.width = (100*ti/(2*N)) + "%";
+  if (ti >= N) return screenPart2Intro();
+  screenVAS(imgs[ti]);
+}
+function screenVAS(im){
+  const K = CONFIG.items.length;
+  count.textContent = practiceMode ? t("cPractice")(pi+1, PRACTICE.length) : t("cVas")(ti+1, N);
+  show(`<div class="trial">
+    <div class="imgbox"><img id="stim" alt="${t("alt")}"></div>
+    <div class="bars"><h2>${L(CONFIG.heading)}</h2>
+      ${CONFIG.items.map((it,k)=>`<div class="bar">
+        ${it.caption ? `<div class="cap">${L(it.caption)}</div>` : ""}
+        <div class="track" data-k="${k}" tabindex="0" role="slider" aria-label="${L(it.left)} - ${L(it.right)}">
+          <div class="tick l"></div><div class="tick r"></div><div class="mark"></div></div>
+        <div class="labels"><span>${L(it.left)}</span><span>${L(it.right)}</span></div></div>`).join("")}
+      <div class="foot"><button id="nxt" disabled>${t("next")}</button><span class="sub" id="hint">${t("hintAll")(K)}</span></div>
+    </div></div>`);
+  const vals = Array(K).fill(null), tracks = [...document.querySelectorAll(".track")];
+  const nxt = document.getElementById("nxt"), hint = document.getElementById("hint");
+  let t0 = null;
+  tracks.forEach(x => x.style.pointerEvents = "none");
+  loadStim(im.src, tt => { t0 = tt; tracks.forEach(x => x.style.pointerEvents = ""); }, () => hint.textContent = t("imgFail") + im.src);
+
+  const setVal = (tr, x) => {
+    const k = +tr.dataset.k, r = tr.getBoundingClientRect();
+    vals[k] = Math.max(0, Math.min(100, (x - r.left) / r.width * 100));
+    const m = tr.querySelector(".mark"); m.style.display = "block"; m.style.left = vals[k] + "%";
+    const left = vals.filter(v => v === null).length;
+    nxt.disabled = left > 0; hint.textContent = left ? t("hintLeft")(left) : "";
+  };
+  tracks.forEach(tr => {
+    let drag = false;
+    tr.onpointerdown = e => { drag = true; tr.setPointerCapture(e.pointerId); setVal(tr, e.clientX); };
+    tr.onpointermove = e => { if (drag) setVal(tr, e.clientX); };
+    tr.onpointerup = tr.onpointercancel = () => drag = false;
+    tr.onkeydown = e => {
+      if (e.key!=="ArrowLeft" && e.key!=="ArrowRight") return;
+      const r = tr.getBoundingClientRect(), cur = vals[+tr.dataset.k] ?? 50;
+      setVal(tr, r.left + Math.max(0, Math.min(100, cur + (e.key==="ArrowRight"?1:-1))) / 100 * r.width);
+    };
+  });
+  nxt.onclick = () => {
+    if (practiceMode) { pi++; nextPractice(); return; }
+    const rt = Math.round(performance.now() - t0);
+    CONFIG.items.forEach((it,k) => addRow({task:"vas", trial_index:ti+1, image_id:im.id, item_id:it.id,
+      pole_left:J(it.left), pole_right:J(it.right), value:vals[k].toFixed(1), rt_ms_image:rt}));
+    ti++; nextVAS();
+  };
+}
+
+/* ---------- パート2: 素材の選択 ---------- */
+function screenPart2Intro(){
+  count.textContent = "";
+  show(`<div class="card"><h1>${t("p2Title")}</h1><p>${t("p2a")}</p><p>${t("p2b")}</p><button id="go">${t("start")}</button></div>`);
+  document.getElementById("go").onclick = () => { morder = CONFIG.materialOrder === "random" ? shuffle(imgs) : imgs; mi = 0; nextMat(); };
+}
+function nextMat(){
+  prog.style.width = (100*(N+mi)/(2*N)) + "%";
+  if (mi >= N) return screenEnd();
+  screenMat(morder[mi]);
+}
+function screenMat(im){
+  count.textContent = t("cMat")(mi+1, N);
+  show(`<div class="trial">
+    <div class="imgbox"><img id="stim" alt="${t("alt")}"></div>
+    <div class="bars"><h2>${L(CONFIG.materialHeading)}</h2>
+      ${CONFIG.materials.map(m=>`<label class="choice"><input type="radio" name="mat" value="${m.id}"> ${L(m.label)}</label>`).join("")}
+      <input type="text" id="other" placeholder="${t("otherPh")}" maxlength="60" style="display:none;width:100%;margin-bottom:8px">
+      <div class="foot"><button id="nxt" disabled>${t("next")}</button><span class="sub" id="hint">${t("hintOne")}</span></div>
+    </div></div>`);
+  const nxt = document.getElementById("nxt"), hint = document.getElementById("hint"), other = document.getElementById("other");
+  const radios = [...document.querySelectorAll('input[name=mat]')];
+  let t0 = null, sel = null;
+  radios.forEach(r => r.disabled = true);
+  loadStim(im.src, tt => { t0 = tt; radios.forEach(r => r.disabled = false); }, () => hint.textContent = t("imgFail") + im.src);
+  radios.forEach(r => r.onchange = () => {
+    sel = CONFIG.materials.find(m => m.id === r.value);
+    document.querySelectorAll(".choice").forEach(c => c.classList.toggle("on", c.contains(r) && r.checked));
+    other.style.display = sel.askText ? "block" : "none";
+    nxt.disabled = false; hint.textContent = "";
+  });
+  nxt.onclick = () => {
+    addRow({task:"material", trial_index:mi+1, image_id:im.id, item_id:"material", category:sel.id, category_label:J(sel.label),
+      other_text: sel.askText ? other.value.trim() : "", rt_ms_image: Math.round(performance.now() - t0)});
+    mi++; nextMat();
+  };
+}
+
+/* ---------- 記録・送信・保存 ---------- */
+const COLS = ["participant_id","age","gender","color_vision","task","trial_index","image_id","item_id","pole_left","pole_right","value","category","category_label","other_text","rt_ms_image","screen_w","screen_h","timestamp","lang"];
+function addRow(o){ rows.push(Object.assign({participant_id:pid, ...demo, screen_w:innerWidth, screen_h:innerHeight, timestamp:new Date().toISOString(), lang:LANG}, o)); }
+
+// スプレッドシート用「1人1行」。性別・色覚・素材は言語に関係なく日本語ラベルで保存(言語を最後の列に記録)
+function buildWide(){
+  const G = {male:"男性", female:"女性", other:"その他", no_answer:"回答しない"};
+  const C = {no:"ない", yes:"ある", unknown:"わからない", no_answer:"回答しない"};
+  const h = ["participant_id","age","gender","color_vision","total_time_sec"];
+  const v = [pid, demo.age, G[demo.gender], C[demo.color_vision], Math.round((performance.now()-tStart)/1000)];
+  const find = (task, id, item) => rows.find(x => x.task===task && x.image_id===id && (!item || x.item_id===item));
+  IMG_ORDER.forEach(im => CONFIG.items.forEach(it => { const r = find("vas", im.id, it.id); h.push(`${im.id}_${it.id}`); v.push(r ? Number(r.value) : ""); }));
+  IMG_ORDER.forEach(im => { const r = find("material", im.id); h.push(`${im.id}_material`); v.push(r ? r.category_label : ""); });
+  IMG_ORDER.forEach(im => { const r = find("material", im.id); h.push(`${im.id}_material_other`); v.push(r ? r.other_text : ""); });
+  h.push("order_vas", "order_material", "lang");
+  v.push(rows.filter(x => x.task==="vas" && x.item_id===CONFIG.items[0].id).map(x => x.image_id).join("|"),
+         rows.filter(x => x.task==="material").map(x => x.image_id).join("|"), LANG);
+  return {h, v};
+}
+function toCSV(){
+  const esc = v => { let s = String(v ?? ""); if (/^[=+\-@]/.test(s)) s = "'" + s; return `"${s.replace(/"/g,'""')}"`; };
+  return "\uFEFF" + [COLS.join(","), ...rows.map(r => COLS.map(c => esc(r[c])).join(","))].join("\r\n");
+}
+function download(){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([toCSV()], {type:"text/csv"}));
+  a.download = `${CONFIG.studyName}_${pid}.csv`; a.click();
+  dirty = false;
+}
+async function send(){
+  const w = buildWide();
+  try {
+    const r = await fetch(CONFIG.postUrl, {method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"}, body:JSON.stringify({header:w.h, values:w.v})});
+    return r.ok;
+  } catch(e){ return false; }
+}
+
+const sendingScreen = () => show(`<div class="card"><h1>${t("sending")}</h1><p>${t("wait")}</p></div>`);
+async function screenEnd(){
+  count.textContent = ""; prog.style.width = "100%";
+  if (!CONFIG.postUrl) return endScreen("save");
+  sendingScreen();
+  endScreen(await send() ? "ok" : "fail");
+}
+function endScreen(state){
+  if (state === "ok") dirty = false;
+  show(`<div class="card"><h1>${t("thanks")}</h1>
+    ${state==="ok" ? `<p>${t("ok")}</p>` : state==="fail" ? `<p class="err">${t("fail")}</p>` : `<p>${t("saveMsg")}</p>`}
+    ${state==="fail" ? `<button id="retry">${t("retry")}</button>` : ""}
+    ${state!=="ok" ? `<button id="dl">${t("save")}</button>` : ""}</div>`);
+  const dl = document.getElementById("dl"), retry = document.getElementById("retry");
+  if (dl) dl.onclick = download;
+  if (retry) retry.onclick = async () => { sendingScreen(); endScreen(await send() ? "ok" : "fail"); };
+}
+
+applyLang();
+screenIntro();
+</script>
+</body>
+</html>
