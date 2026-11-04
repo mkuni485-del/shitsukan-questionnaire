@@ -21,16 +21,18 @@ fieldset{border:0;padding:0;margin:0 0 16px}
 legend{font-weight:bold;padding:0;margin-bottom:4px}
 fieldset label{margin-right:16px;white-space:nowrap}
 input[type=radio],input[type=checkbox]{accent-color:#000;width:18px;height:18px;vertical-align:middle;margin:0 6px 0 0}
-input[type=number],input[type=text]{font:inherit;padding:6px;background:var(--bg);color:var(--fg);border:1px solid var(--sub)}
-input[type=number]{width:6em}
+input[type=number]{font:inherit;padding:6px;width:6em;background:var(--bg);color:var(--fg);border:1px solid var(--sub)}
 button{font:inherit;padding:10px 32px;background:var(--accent);color:#fff;border:0;cursor:pointer}
 button+button{margin-left:12px}
 button:disabled{opacity:.35;cursor:not-allowed}
-button:focus-visible,.track:focus-visible,.choice:focus-within{outline:3px solid var(--fg);outline-offset:3px}
+button:focus-visible,.track:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
 .trial{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:74px;align-items:center}
 .bars h2{font-size:1rem;margin:0 0 40px}
 .bar{margin-bottom:36px}
+.bars.compact h2{margin-bottom:28px}
+.bars.compact .bar{margin-bottom:24px}
 .cap{font-size:.85rem;color:var(--sub);margin-bottom:6px}
+.cap.big{font-size:1rem;font-weight:bold;color:var(--fg);margin-bottom:2px}
 .track{position:relative;height:34px;cursor:pointer;touch-action:none}
 .track::before{content:"";position:absolute;left:0;right:0;top:16px;height:2px;background:var(--line)}
 .track::after{content:"";position:absolute;left:0;right:0;top:-30px;bottom:-30px}
@@ -42,9 +44,6 @@ button:focus-visible,.track:focus-visible,.choice:focus-within{outline:3px solid
 .foot{display:flex;align-items:center;gap:16px;margin-top:18px}
 .imgbox{text-align:center}
 #stim{max-width:100%;max-height:78vh;object-fit:contain}
-.choice{display:block;padding:9px 16px;margin-bottom:8px;border:1px solid var(--sub);cursor:pointer;background-color:var(--card)}
-.choice input{position:absolute;opacity:0;pointer-events:none}
-.choice.on{background-color:var(--accent);color:#fff;border-color:var(--fg)}
 .prog{position:fixed;left:0;top:0;height:4px;background:var(--fg);transition:width .2s}
 .count{position:fixed;right:16px;top:10px;font-size:.85rem;color:var(--sub)}
 @media (max-width:900px){.trial{grid-template-columns:1fr}#stim{max-height:40vh}}
@@ -58,46 +57,46 @@ button:focus-visible,.track:focus-visible,.choice:focus-within{outline:3px solid
 
 <script>
 /* ================= 設定 / Settings ================= */
-// 文言は {ja:"…", en:"…"} の形で書く。回答データには常に日本語ラベルが保存される(言語が違っても同じ列・同じ値になる)。
+// 文言は {ja:"…", en:"…"} の形で書く。回答データには常に日本語ラベルが保存される。
+// 線の左端=ネガティブ、右端=ポジティブにそろえてある。
 const CONFIG = {
-  defaultLang: "ja",         // URLに ?lang=en を付けると英語で開く。付けなければこの言語
+  defaultLang: "ja",         // URLに ?lang=en を付けると英語で開く
   images: [
     "2D_denim.png", "2D_iron.png", "2D_paper.png", "2D_wood.png", "2D_marble.png",
     "cube_denim.png", "cube_iron.png", "cube_paper.png", "cube_wood.png", "cube_marble.png",
     "cloth_denim.png", "cloth_iron.png", "cloth_paper.png", "cloth_wood.png", "cloth_marble.png"
   ],
-  practiceImages: [          // 練習用2枚(本番とは別のもの)。空ならデモ用ダミー画像
-     "practice1.png", "practice2.png"
-  ],
+  practiceImages: [ "practice1.png", "practice2.png" ],   // 練習用2枚(本番とは別のもの)。空ならダミー画像
   randomize: true,           // true=印象評価の提示順を参加者ごとにランダム化
   materialOrder: "same",     // "same"=印象評価と同じ順 / "random"=ランダム
 
+  // パート1: 印象評価(左=ネガティブ / 右=ポジティブ)
   items: [
-    { id: "hard_soft",    left: {ja:"硬そう",   en:"Hard"},   right: {ja:"柔らかそう", en:"Soft"} },
-    { id: "rough_smooth", left: {ja:"粗そう",   en:"Rough"},  right: {ja:"滑らかそう", en:"Smooth"} },
-    { id: "warm_cool",    left: {ja:"温かそう", en:"Warm"},   right: {ja:"冷たそう",   en:"Cold"} },
-    { id: "comfortable",  left: {ja:"心地よい", en:"Comfortable"},       right: {ja:"気持ち悪い", en:"Uncomfortable"} },
-    { id: "touch",        left: {ja:"触りたい", en:"Want to touch"},  right: {ja:"触りたくない", en:"Don't want to touch"} },
-    { id: "natural",      left: {ja:"自然",     en:"Natural"},        right: {ja:"不自然",     en:"Unnatural"},
+    { id: "hard_soft",    left: {ja:"硬そう",       en:"Hard"},                right: {ja:"柔らかそう",     en:"Soft"} },
+    { id: "rough_smooth", left: {ja:"粗そう",       en:"Rough"},               right: {ja:"滑らかそう",     en:"Smooth"} },
+    { id: "warm_cool",    left: {ja:"冷たそう",     en:"Cold"},                right: {ja:"温かそう",       en:"Warm"} },
+    { id: "comfortable",  left: {ja:"気持ち悪そう", en:"Uncomfortable"},       right: {ja:"気持ちよさそう", en:"Comfortable"} },
+    { id: "touch",        left: {ja:"触りたくない", en:"Don't want to touch"}, right: {ja:"触りたい",       en:"Want to touch"} },
+    { id: "natural",      left: {ja:"不自然",       en:"Unnatural"},           right: {ja:"自然",           en:"Natural"},
       caption: {ja:"素材と形状の組み合わせが", en:"The combination of material and shape looks"} }
   ],
   heading: {
-    ja: "左の画像を見たときの印象として、当てはまる位置を、それぞれクリックしてください。直感で答えてください。",
-    en: "Look at the image on the left and click, on each line, the position that matches your impression. Answer intuitively."
+    ja: "左の画像を見て、自身が感じ取った印象を反映する各線上の位置にそれぞれクリックしてください。直感で答えてください。",
+    en: "Look at the material in the image on the left and click, on each line, the position that reflects your impression. Answer intuitively."
   },
 
+  // パート2: 各素材に「どれくらい近いか」(左=らしくない / 右=らしい)
   materials: [
-    { id: "cloth",   label: {ja:"布",   en:"Fabric"} },
-    { id: "metal",   label: {ja:"金属", en:"Metal"} },
-    { id: "paper",   label: {ja:"紙",   en:"Paper"} },
-    { id: "wood",    label: {ja:"木材", en:"Wood"} },
-    { id: "stone",   label: {ja:"石",   en:"Stone"} },
-    { id: "other",   label: {ja:"その他", en:"Other"}, askText: true },
-    { id: "unknown", label: {ja:"分からない", en:"Don't know"} }
+    { id: "cloth", label: {ja:"布",   en:"Fabric"} },
+    { id: "metal", label: {ja:"金属", en:"Metal"} },
+    { id: "paper", label: {ja:"紙",   en:"Paper"} },
+    { id: "wood",  label: {ja:"木材", en:"Wood"} },
+    { id: "stone", label: {ja:"石",   en:"Stone"} }
   ],
+  materialScale: { left: {ja:"らしくない", en:"Not at all like it"}, right: {ja:"らしい", en:"Very much like it"} },
   materialHeading: {
-    ja: "この画像は何を表していると思いますか?",
-    en: "What material do you think this image represents?"
+    ja: "この画像は次のそれぞれの素材にどれくらい近いと思いますか?",
+    en: "How close do you think this image is to each of the following materials?"
   },
 
   ui: {   // UIのカスタマイズ(パスはHTMLからの相対パス)
@@ -106,7 +105,6 @@ const CONFIG = {
     bar:  { image: "bar.png",  height: 6 },
     mark: { image: "mark.png", width: 20, height: 20 }
     // button: { image: "ui/next.png", disabledImage: "ui/next_off.png", width: 160, height: 48, hideText: true },
-    // choice: { image: "ui/choice.png", selectedImage: "ui/choice_on.png", height: 48 }
   },
 
   minWidth: 900,
@@ -119,7 +117,7 @@ const T = {
 ja: {
   title:"画像の印象評価アンケート", alt:"評価対象の画像", next:"次へ", start:"始める",
   introTitle:"画像の印象評価アンケートへのご協力のお願い",
-  intro1:n=>`画像を見て、受けた印象を線上に示していただきます(全${n}枚)。その後、同じ画像について素材を選んでいただきます。所要時間はおよそ10分です。`,
+  intro1:n=>`${n}枚の画像が1枚ずつ順に表示されます。各画像について、自身の考えを最もよく表している位置を線上で選択し、画像の印象を示してください。その後、各画像に写っている素材がどれほど提示された単語の素材に近いかを同じく線上の位置を選択して答えていただきます。所要時間は約10分です。`,
   intro2:"回答は匿名で処理され、研究以外の目的では使用しません。また参加は任意です。いつでも回答を中止できます。",
   narrow:"画面幅が狭いようです。パソコンで、ブラウザを広げてご回答ください。",
   age:"年齢(半角)", years:"歳", gender:"性別", male:"男性", female:"女性", other:"その他", noAnswer:"回答しない",
@@ -134,9 +132,8 @@ ja: {
   cPractice:(i,n)=>`練習 ${i} / ${n}`, cVas:(i,n)=>`印象評価 ${i} / ${n}`, cMat:(i,n)=>`素材 ${i} / ${n}`,
   hintAll:k=>`${k}本すべてに回答してください`, hintLeft:n=>`あと${n}本`, imgFail:"画像を読み込めませんでした: ",
   p2Title:"回答のしかた(2/2:素材)",
-  p2a:"印象評価は終了です。次は、先ほどと同じ画像を1枚ずつ見て、その素材が何に見えるかを選んでください。",
-  p2b:"左側に画像、右側に選択肢が表示されます。最も近いものを1つ選び、「次へ」を押してください。",
-  otherPh:"具体的に(任意)", hintOne:"1つ選んでください",
+  p2a:"印象評価は終了です。次は、先ほどと同じ画像を1枚ずつ見て、その画像がそれぞれの素材にどれくらい近いかを答えてください。",
+  p2b:"左側に画像、右側に素材ごとの線が表示されます。各素材について、画像がその素材らしいと思う程度を線上でクリックしてください(左端が「らしくない」、右端が「らしい」)。すべての線に回答すると「次へ」が押せます。",
   thanks:"本当にありがとうございました。", sending:"送信しています…", wait:"このままお待ちください。",
   ok:"回答は送信されました。このページを閉じて構いません。",
   fail:"送信に失敗しました。もう一度送信するか、回答ファイルを保存して実施者にお送りください。",
@@ -146,7 +143,7 @@ ja: {
 en: {
   title:"Image Impression Survey", alt:"Image to rate", next:"Next", start:"Start",
   introTitle:"Image Impression Survey: Invitation to Participate",
-  intro1:n=>`You will look at images and show your impression of each one on a line (${n} images in total). After that, you will choose the material of the same images. It takes about 10 minutes.`,
+  intro1:n=>`You will be shown ${n} images, one at a time. For each image, please indicate your impression by selecting a position on the line that best reflects your judgment. Afterward, you will be asked to indicate—again by selecting a position on a line—how closely the material shown in each image corresponds to a specific material term provided. The task will take approximately 10 minutes to complete.`,
   intro2:"Your responses are anonymous and will be used for research purposes only. Participation is voluntary, and you may stop at any time.",
   narrow:"Your screen looks narrow. Please respond on a computer with a wide browser window.",
   age:"Age", years:"years old", gender:"Gender", male:"Male", female:"Female", other:"Other", noAnswer:"Prefer not to answer",
@@ -155,15 +152,14 @@ en: {
   eAge:"Please enter your age as a number (10–120).", eGender:"Please select your gender.", eCvd:"Please answer the question about color vision.", eAgree:"Please check the consent box.",
   instrTitle:"How to respond (1/2: Impressions)",
   instr1:k=>`An image appears on the left and ${k} lines on the right. <b>Click</b> each line at the position closest to your impression of the image. You can drag to adjust after clicking.`,
-  instr2:k=>`Once you have answered all ${k} lines, the Next button becomes active. There are no right or wrong answers, so please answer intuitively.`,
+  instr2:k=>`Once you have answered all ${k} lines, the Next button becomes available. There are no right or wrong answers, so please answer intuitively.`,
   instr3:"First, you will do a short practice.", startPractice:"Start practice",
   pracDone:"Practice complete.", pracDone2:"Please respond in the same way in the main task.", startMain:"Start main task",
   cPractice:(i,n)=>`Practice ${i} / ${n}`, cVas:(i,n)=>`Impressions ${i} / ${n}`, cMat:(i,n)=>`Material ${i} / ${n}`,
   hintAll:k=>`Please answer all ${k} lines`, hintLeft:n=>`${n} remaining`, imgFail:"Could not load the image: ",
   p2Title:"How to respond (2/2: Material)",
-  p2a:"The impression ratings are finished. Next, you will see the same images one by one and choose what material each one appears to be made of.",
-  p2b:"The image appears on the left and the options on the right. Choose the closest one and press Next.",
-  otherPh:"Please specify (optional)", hintOne:"Please choose one",
+  p2a:"The impression ratings are finished. Next, you will see the same images one by one and rate how close each image is to each of the materials listed.",
+  p2b:"The image appears on the left and one line for each material on the right. For each material, click the position on the line that shows how much the image looks like that material (left end: not at all like it; right end: very much like it). Once you have answered all the lines, the Next button becomes available.",
   thanks:"Thank you very much.", sending:"Sending…", wait:"Please wait.",
   ok:"Your responses have been submitted. You may close this page.",
   fail:"Submission failed. Please try again, or save the response file and send it to the researcher.",
@@ -193,6 +189,8 @@ let imgs = CONFIG.images.length ? CONFIG.images.map(s=>({src:s,id:s.split("/").p
 const N = imgs.length;
 const IMG_ORDER = imgs.slice();
 const PRACTICE = (CONFIG.practiceImages.length ? CONFIG.practiceImages : [dummy(101), dummy(102)]).map((s,i) => ({src:s, id:"practice_"+(i+1)}));
+// パート2の各バー(素材名を見出しにして、共通の「らしくない―らしい」線を付ける)
+const MAT_ITEMS = CONFIG.materials.map(m => ({id:m.id, caption:m.label, big:true, left:CONFIG.materialScale.left, right:CONFIG.materialScale.right}));
 let tStart = 0, dirty = false, practiceMode = false, pi = 0, ti = 0, mi = 0, morder = [];
 
 addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
@@ -223,11 +221,9 @@ const preload = () => [...imgs, ...PRACTICE].forEach(i => { new Image().src = i.
     css.push(`button{background:${url(b.image)} center/100% 100% no-repeat;width:${b.width||160}px;height:${b.height||48}px;padding:0;${b.hideText?"color:transparent;font-size:0;":""}}`);
     css.push(`button:disabled{${b.disabledImage?`background-image:${url(b.disabledImage)};opacity:1`:"opacity:.35"}}`);
   }
-  if (u.choice && u.choice.image)
-    css.push(`.choice{background:${url(u.choice.image)} center/100% 100% no-repeat;border:0;color:inherit;height:${u.choice.height||48}px;display:flex;align-items:center}.choice.on{${u.choice.selectedImage?`background-image:${url(u.choice.selectedImage)};`:""}color:inherit}`);
   document.getElementById("ui-custom").textContent = css.join("\n");
 
-  [u.bar, u.mark, u.button, u.choice].filter(Boolean).flatMap(o => [o.image, o.disabledImage, o.selectedImage]).filter(Boolean).forEach(p => {
+  [u.bar, u.mark, u.button].filter(Boolean).flatMap(o => [o.image, o.disabledImage]).filter(Boolean).forEach(p => {
     const im = new Image();
     im.onerror = () => {
       const d = document.createElement("div");
@@ -293,33 +289,16 @@ function loadStim(src, onReady, onFail){
   img.src = src;
 }
 
-/* ---------- 練習 ---------- */
-function nextPractice(){
-  if (pi >= PRACTICE.length) return screenMainIntro();
-  practiceMode = true;
-  screenVAS(PRACTICE[pi]);
-}
-function screenMainIntro(){
-  practiceMode = false; count.textContent = "";
-  show(`<div class="card"><h1>${t("pracDone")}</h1><p>${t("pracDone2")}</p><button id="go">${t("startMain")}</button></div>`);
-  document.getElementById("go").onclick = () => { ti = 0; nextVAS(); };
-}
-
-/* ---------- パート1: 印象評価 ---------- */
-function nextVAS(){
-  prog.style.width = (100*ti/(2*N)) + "%";
-  if (ti >= N) return screenPart2Intro();
-  screenVAS(imgs[ti]);
-}
-function screenVAS(im){
-  const K = CONFIG.items.length;
-  count.textContent = practiceMode ? t("cPractice")(pi+1, PRACTICE.length) : t("cVas")(ti+1, N);
+/* ---------- 共通: 画像(左)+複数のVASバー(右) ---------- */
+function screenScale({im, items, heading, countText, compact, onNext}){
+  const K = items.length;
+  count.textContent = countText;
   show(`<div class="trial">
     <div class="imgbox"><img id="stim" alt="${t("alt")}"></div>
-    <div class="bars"><h2>${L(CONFIG.heading)}</h2>
-      ${CONFIG.items.map((it,k)=>`<div class="bar">
-        ${it.caption ? `<div class="cap">${L(it.caption)}</div>` : ""}
-        <div class="track" data-k="${k}" tabindex="0" role="slider" aria-label="${L(it.left)} - ${L(it.right)}">
+    <div class="bars${compact ? " compact" : ""}"><h2>${heading}</h2>
+      ${items.map((it,k)=>`<div class="bar">
+        ${it.caption ? `<div class="${it.big ? "cap big" : "cap"}">${L(it.caption)}</div>` : ""}
+        <div class="track" data-k="${k}" tabindex="0" role="slider" aria-label="${it.caption ? L(it.caption) + ": " : ""}${L(it.left)} - ${L(it.right)}">
           <div class="tick l"></div><div class="tick r"></div><div class="mark"></div></div>
         <div class="labels"><span>${L(it.left)}</span><span>${L(it.right)}</span></div></div>`).join("")}
       <div class="foot"><button id="nxt" disabled>${t("next")}</button><span class="sub" id="hint">${t("hintAll")(K)}</span></div>
@@ -348,16 +327,39 @@ function screenVAS(im){
       setVal(tr, r.left + Math.max(0, Math.min(100, cur + (e.key==="ArrowRight"?1:-1))) / 100 * r.width);
     };
   });
-  nxt.onclick = () => {
-    if (practiceMode) { pi++; nextPractice(); return; }
-    const rt = Math.round(performance.now() - t0);
-    CONFIG.items.forEach((it,k) => addRow({task:"vas", trial_index:ti+1, image_id:im.id, item_id:it.id,
-      pole_left:J(it.left), pole_right:J(it.right), value:vals[k].toFixed(1), rt_ms_image:rt}));
-    ti++; nextVAS();
-  };
+  nxt.onclick = () => onNext(vals, Math.round(performance.now() - t0));
 }
 
-/* ---------- パート2: 素材の選択 ---------- */
+/* ---------- 練習 ---------- */
+function nextPractice(){
+  if (pi >= PRACTICE.length) return screenMainIntro();
+  practiceMode = true;
+  screenVAS(PRACTICE[pi]);
+}
+function screenMainIntro(){
+  practiceMode = false; count.textContent = "";
+  show(`<div class="card"><h1>${t("pracDone")}</h1><p>${t("pracDone2")}</p><button id="go">${t("startMain")}</button></div>`);
+  document.getElementById("go").onclick = () => { ti = 0; nextVAS(); };
+}
+
+/* ---------- パート1: 印象評価 ---------- */
+function nextVAS(){
+  prog.style.width = (100*ti/(2*N)) + "%";
+  if (ti >= N) return screenPart2Intro();
+  screenVAS(imgs[ti]);
+}
+function screenVAS(im){
+  screenScale({im, items:CONFIG.items, heading:L(CONFIG.heading),
+    countText: practiceMode ? t("cPractice")(pi+1, PRACTICE.length) : t("cVas")(ti+1, N),
+    onNext:(vals, rt) => {
+      if (practiceMode) { pi++; nextPractice(); return; }   // 練習は記録しない
+      CONFIG.items.forEach((it,k) => addRow({task:"vas", trial_index:ti+1, image_id:im.id, item_id:it.id,
+        pole_left:J(it.left), pole_right:J(it.right), value:vals[k].toFixed(1), rt_ms_image:rt}));
+      ti++; nextVAS();
+    }});
+}
+
+/* ---------- パート2: 素材らしさ(VAS) ---------- */
 function screenPart2Intro(){
   count.textContent = "";
   show(`<div class="card"><h1>${t("p2Title")}</h1><p>${t("p2a")}</p><p>${t("p2b")}</p><button id="go">${t("start")}</button></div>`);
@@ -369,49 +371,30 @@ function nextMat(){
   screenMat(morder[mi]);
 }
 function screenMat(im){
-  count.textContent = t("cMat")(mi+1, N);
-  show(`<div class="trial">
-    <div class="imgbox"><img id="stim" alt="${t("alt")}"></div>
-    <div class="bars"><h2>${L(CONFIG.materialHeading)}</h2>
-      ${CONFIG.materials.map(m=>`<label class="choice"><input type="radio" name="mat" value="${m.id}"> ${L(m.label)}</label>`).join("")}
-      <input type="text" id="other" placeholder="${t("otherPh")}" maxlength="60" style="display:none;width:100%;margin-bottom:8px">
-      <div class="foot"><button id="nxt" disabled>${t("next")}</button><span class="sub" id="hint">${t("hintOne")}</span></div>
-    </div></div>`);
-  const nxt = document.getElementById("nxt"), hint = document.getElementById("hint"), other = document.getElementById("other");
-  const radios = [...document.querySelectorAll('input[name=mat]')];
-  let t0 = null, sel = null;
-  radios.forEach(r => r.disabled = true);
-  loadStim(im.src, tt => { t0 = tt; radios.forEach(r => r.disabled = false); }, () => hint.textContent = t("imgFail") + im.src);
-  radios.forEach(r => r.onchange = () => {
-    sel = CONFIG.materials.find(m => m.id === r.value);
-    document.querySelectorAll(".choice").forEach(c => c.classList.toggle("on", c.contains(r) && r.checked));
-    other.style.display = sel.askText ? "block" : "none";
-    nxt.disabled = false; hint.textContent = "";
-  });
-  nxt.onclick = () => {
-    addRow({task:"material", trial_index:mi+1, image_id:im.id, item_id:"material", category:sel.id, category_label:J(sel.label),
-      other_text: sel.askText ? other.value.trim() : "", rt_ms_image: Math.round(performance.now() - t0)});
-    mi++; nextMat();
-  };
+  screenScale({im, items:MAT_ITEMS, heading:L(CONFIG.materialHeading), countText:t("cMat")(mi+1, N), compact:true,
+    onNext:(vals, rt) => {
+      MAT_ITEMS.forEach((it,k) => addRow({task:"material", trial_index:mi+1, image_id:im.id, item_id:it.id,
+        pole_left:J(it.left), pole_right:J(it.right), value:vals[k].toFixed(1), rt_ms_image:rt}));
+      mi++; nextMat();
+    }});
 }
 
 /* ---------- 記録・送信・保存 ---------- */
-const COLS = ["participant_id","age","gender","color_vision","task","trial_index","image_id","item_id","pole_left","pole_right","value","category","category_label","other_text","rt_ms_image","screen_w","screen_h","timestamp","lang"];
+const COLS = ["participant_id","age","gender","color_vision","task","trial_index","image_id","item_id","pole_left","pole_right","value","rt_ms_image","screen_w","screen_h","timestamp","lang"];
 function addRow(o){ rows.push(Object.assign({participant_id:pid, ...demo, screen_w:innerWidth, screen_h:innerHeight, timestamp:new Date().toISOString(), lang:LANG}, o)); }
 
-// スプレッドシート用「1人1行」。性別・色覚・素材は言語に関係なく日本語ラベルで保存(言語を最後の列に記録)
+// スプレッドシート用「1人1行」。性別・色覚は言語に関係なく日本語ラベルで保存(言語は最後の列)
 function buildWide(){
   const G = {male:"男性", female:"女性", other:"その他", no_answer:"回答しない"};
   const C = {no:"ない", yes:"ある", unknown:"わからない", no_answer:"回答しない"};
   const h = ["participant_id","age","gender","color_vision","total_time_sec"];
   const v = [pid, demo.age, G[demo.gender], C[demo.color_vision], Math.round((performance.now()-tStart)/1000)];
-  const find = (task, id, item) => rows.find(x => x.task===task && x.image_id===id && (!item || x.item_id===item));
-  IMG_ORDER.forEach(im => CONFIG.items.forEach(it => { const r = find("vas", im.id, it.id); h.push(`${im.id}_${it.id}`); v.push(r ? Number(r.value) : ""); }));
-  IMG_ORDER.forEach(im => { const r = find("material", im.id); h.push(`${im.id}_material`); v.push(r ? r.category_label : ""); });
-  IMG_ORDER.forEach(im => { const r = find("material", im.id); h.push(`${im.id}_material_other`); v.push(r ? r.other_text : ""); });
+  const val = (task, id, item) => { const r = rows.find(x => x.task===task && x.image_id===id && x.item_id===item); return r ? Number(r.value) : ""; };
+  IMG_ORDER.forEach(im => CONFIG.items.forEach(it => { h.push(`${im.id}_${it.id}`); v.push(val("vas", im.id, it.id)); }));
+  IMG_ORDER.forEach(im => CONFIG.materials.forEach(m => { h.push(`${im.id}_mat_${m.id}`); v.push(val("material", im.id, m.id)); }));
+  const order = (task, item) => rows.filter(x => x.task===task && x.item_id===item).map(x => x.image_id).join("|");
   h.push("order_vas", "order_material", "lang");
-  v.push(rows.filter(x => x.task==="vas" && x.item_id===CONFIG.items[0].id).map(x => x.image_id).join("|"),
-         rows.filter(x => x.task==="material").map(x => x.image_id).join("|"), LANG);
+  v.push(order("vas", CONFIG.items[0].id), order("material", CONFIG.materials[0].id), LANG);
   return {h, v};
 }
 function toCSV(){
