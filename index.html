@@ -389,12 +389,20 @@ function buildWide(){
   const C = {no:"ない", yes:"ある", unknown:"わからない", no_answer:"回答しない"};
   const h = ["participant_id","age","gender","color_vision","total_time_sec"];
   const v = [pid, demo.age, G[demo.gender], C[demo.color_vision], Math.round((performance.now()-tStart)/1000)];
-  const val = (task, id, item) => { const r = rows.find(x => x.task===task && x.image_id===id && x.item_id===item); return r ? Number(r.value) : ""; };
+  const row = (task, id, item) => rows.find(x => x.task===task && x.image_id===id && x.item_id===item);
+  const val = (task, id, item) => { const r = row(task, id, item); return r ? Number(r.value) : ""; };
+  const sec = (task, id, item) => { const r = row(task, id, item); return r ? Math.round(r.rt_ms_image/10)/100 : ""; };   // 秒(小数第2位まで)
+
   IMG_ORDER.forEach(im => CONFIG.items.forEach(it => { h.push(`${im.id}_${it.id}`); v.push(val("vas", im.id, it.id)); }));
   IMG_ORDER.forEach(im => CONFIG.materials.forEach(m => { h.push(`${im.id}_mat_${m.id}`); v.push(val("material", im.id, m.id)); }));
+
   const order = (task, item) => rows.filter(x => x.task===task && x.item_id===item).map(x => x.image_id).join("|");
   h.push("order_vas", "order_material", "lang");
   v.push(order("vas", CONFIG.items[0].id), order("material", CONFIG.materials[0].id), LANG);
+
+  // 各ページの回答時間(秒)。練習は記録しない
+  IMG_ORDER.forEach(im => { h.push(`${im.id}_vas_sec`); v.push(sec("vas", im.id, CONFIG.items[0].id)); });
+  IMG_ORDER.forEach(im => { h.push(`${im.id}_mat_sec`); v.push(sec("material", im.id, CONFIG.materials[0].id)); });
   return {h, v};
 }
 function toCSV(){
